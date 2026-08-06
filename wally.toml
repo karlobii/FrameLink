@@ -1,0 +1,8 @@
+[package]
+name = "karlobii/framelink"
+version = "0.0.3"
+description = "Links frames and buttons with optional animations and one at a time menu management. Includes bulk-link and custom tweens." 
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
