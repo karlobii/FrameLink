@@ -25,6 +25,13 @@ With its newly data-driven animation system, you can easily plug in your own cus
 
 ---
 
+### Wally
+```text
+FrameLink = "karlobii/framelink@^1.0.0"
+```
+
+---
+
 ### Manual
 1. Create a `ModuleScript` inside `ReplicatedStorage` (or your preferred UI directory) and name it `FrameLink`. Paste the code from `src/FrameLink.luau` into it.
 2. Create a second `ModuleScript` **inside** `FrameLink`, name it `Animations`, and paste the code from `src/Animations.luau` into it.
