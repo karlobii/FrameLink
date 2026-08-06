@@ -5,6 +5,7 @@
 
 
 local TweenService = game:GetService("TweenService")
+
 local Animations = require(script.Animations)
 
 local frameLink = {}
@@ -69,20 +70,19 @@ function frameLink._playOpen(self: frameLink)
 		self.props.Background.Visible = true
 	end
 
+	if self.props and self.props.OnOpened then
+		self.props.OnOpened(self :: frameLink)
+	end
+
 	if self.tweens.In then
 		self.isAnimating = true
 		self.tweens.In:Play()
+		
 		self.tweens.In.Completed:Once(function()
 			self.isAnimating = false
-			if self.props and self.props.OnOpened then
-				self.props.OnOpened()
-			end
 		end)
 	else
 		self.isAnimating = false
-		if self.props and self.props.OnOpened then
-			self.props.OnOpened()
-		end
 	end
 end
 
@@ -133,14 +133,14 @@ function frameLink.setClosed(self: frameLink)
 			self.frame.Visible = false
 			self.isAnimating = false
 			if self.props and self.props.OnClosed then
-				self.props.OnClosed()
+				self.props.OnClosed(self :: frameLink)
 			end
 		end)
 	else
 		self.frame.Visible = false
 		self.isAnimating = false
 		if self.props and self.props.OnClosed then
-			self.props.OnClosed()
+			self.props.OnClosed(self :: frameLink)
 		end
 	end
 end
