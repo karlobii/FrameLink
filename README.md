@@ -1,4 +1,3 @@
-```markdown
 # FrameLink
 
 **FrameLink** is a lightweight, type-safe Luau UI animation and state management framework designed for Roblox. It simplifies window management, handles single-frame visibility constraints, manages audio playback, and automates UI transitions with built-in or custom animations.
@@ -308,5 +307,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ```
 
-```#   F r a m e L i n k  
+```#   F r a m e L i n k 
+ 
  
