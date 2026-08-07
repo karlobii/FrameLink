@@ -1,148 +1,312 @@
+```markdown
 # FrameLink
 
-**FrameLink** is a lightweight, scalable UI management module for Roblox. It seamlessly links `GuiButtons` to `Frames`, handling opening and closing animations, sound effects, state management (ensuring only one frame is open at a time), and background dimming.
+**FrameLink** is a lightweight, type-safe Luau UI animation and state management framework designed for Roblox. It simplifies window management, handles single-frame visibility constraints, manages audio playback, and automates UI transitions with built-in or custom animations.
 
-With its newly data-driven animation system, you can easily plug in your own custom tweens without touching the core logic.
+Whether you build interfaces using traditional Instance hierarchies or declarative UI frameworks like **Vide**, **Fusion**, or **Roact**, FrameLink integrates seamlessly by allowing optional button binding (`button = nil`) and exposing imperative control methods (`:setOpen()`, `:setClosed()`, `:toggle()`).
 
----
-
-## Features
-
-* **Modular Animation System:** Animations are stored in a separate child module. Add new tweens instantly just by passing a dictionary!
-* **Zero-Delay Defaults:** If no animation is provided, frames open and close instantly with zero latency.
-* **Smart State Management:** Automatically closes the currently open frame before opening a new one. Prevents awkward overlaps and double-clicking bugs.
-* **Multi-Link Support:** Link entire folders of buttons to folders of frames in a single line of code.
-* **Rich Callbacks & Accessories:** Built-in support for background dimming buttons, close (X) buttons, open/close sound effects, and `OnOpened`/`OnClosed` event hooks.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Luau Strict](https://img.shields.io/badge/Luau-Strict-blueviolet.svg)](https://luau-lang.org/)
 
 ---
 
-## Installation
+## Key Features
 
-### Rbxm
-1. Download the newest release file with the `.rbxm` file extension.
-2. Import it into Studio using `File -> Import Roblox Model -> Select FrameLink.rbxm`.
-3. Drag the model into `ReplicatedStorage`.
+- 🎯 **Automatic State Locking:** Ensures only **one** linked UI frame can be open at a time, smoothly transitioning out active frames before opening new ones.
+- ⚛️ **Declarative Framework Support:** Pass `nil` as the trigger button to link frames generated dynamically via **Vide**, **Fusion**, or **Roact/React**, controlling them directly through action hooks or signal callbacks.
+- ⚡ **Type-Safe Luau:** Built from the ground up using `--!strict` mode for full autocomplete and static analysis support.
+- 📂 **Multi-Linking:** Automatically link whole folders of buttons and corresponding frames with a single method call.
+- 🎨 **Built-in Presets:** Out-of-the-box support for popular UI animations like `Pop`, `PopSpin`, `SlideBottom`, `SlideLeft`, `SlideRight`, and `Top`.
+- 🧩 **Custom Animation Engine:** Register custom tween definitions globally or pass dynamic per-frame transitions.
+- 🎧 **Built-in Audio & Overlay Support:** Assign open/close sound effects and modal backdrop buttons directly through property tables.
 
 ---
 
-### Wally
+# Install
+
+## Manual
+
+Place `FrameLink` inside your project's client hierarchy (e.g., `ReplicatedStorage` or `StarterPlayerScripts`):
+
+```text
+FrameLink (ModuleScript)
+└── Animations (ModuleScript)
+
+```
+
+## Wally
+
 ```text
 FrameLink = "karlobii/framelink@^1.0.0"
 ```
 
 ---
 
-### Manual
-1. Create a `ModuleScript` inside `ReplicatedStorage` (or your preferred UI directory) and name it `FrameLink`. Paste the code from `src/FrameLink.luau` into it.
-2. Create a second `ModuleScript` **inside** `FrameLink`, name it `Animations`, and paste the code from `src/Animations.luau` into it.
+## Usage Examples
 
-Your explorer should look like this:
+### 1. Traditional Instance Workflow
+
+Link a single trigger button directly to a UI frame:
+
+```lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local FrameLink = require(ReplicatedStorage.FrameLink)
+
+local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+local mainGui = playerGui:WaitForChild("MainGui")
+
+local openButton = mainGui.ShopButton
+local shopFrame = mainGui.ShopFrame
+
+-- Link button to frame with a built-in animation preset
+local shopWindow = FrameLink.link(openButton, shopFrame, {
+    Anim = "Pop",
+    CloseButton = shopFrame:FindFirstChild("CloseButton"),
+    Background = mainGui:FindFirstChild("ModalOverlay"),
+    SoundIn = ReplicatedStorage.Sounds.Open,
+    SoundOut = ReplicatedStorage.Sounds.Close,
+    OnOpened = function(obj)
+        print("Shop opened!")
+    end,
+    OnClosed = function(obj)
+        print("Shop closed!")
+    end,
+})
+
+```
+
+---
+
+### 2. Declarative UI Workflow (Vide, Fusion, etc.)
+
+When using declarative UI libraries, pass `nil` as the first argument (`button`) in `FrameLink.link()`. This creates a `FrameLinkObj` managed directly through state handlers or click events.
+
+#### Vide Integration Example
+
+```lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Vide = require(ReplicatedStorage.Packages.Vide)
+local FrameLink = require(ReplicatedStorage.Packages.FrameLink)
+
+local create = Vide.create
+local action = Vide.action
+
+local function ShopComponent()
+    local shopLink: FrameLink.FrameLinkObj?
+
+    return create "Frame" {
+        Name = "BigFramey",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+
+        -- Shop Window
+        create "Frame" {
+            Name = "Shop",
+            Size = UDim2.fromScale(0.5, 0.5),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.5),
+
+            -- Capture reference to node upon creation and link without explicit button
+            action(function(node: Instance)
+                shopLink = FrameLink.link(nil, node :: GuiObject, {
+                    Anim = "PopSpin",
+                    CloseButton = node:FindFirstChild("CloseButton") :: GuiButton,
+                })
+            end),
+
+            create "UICorner" { CornerRadius = UDim.new(0.05, 0) },
+
+            create "TextButton" {
+                Name = "CloseButton",
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Position = UDim2.fromScale(1, 0),
+                Size = UDim2.fromScale(0.1, 0.1),
+                Text = "X",
+                Font = Enum.Font.FredokaOne,
+                BackgroundColor3 = Color3.new(1, 0, 0),
+            },
+        },
+
+        -- Open Trigger Button
+        create "TextButton" {
+            Name = "ShopButton",
+            Text = "Shop",
+            Position = UDim2.fromScale(0.026, 0.574),
+            Size = UDim2.fromScale(0.05, 0.05),
+            Font = Enum.Font.FredokaOne,
+
+            -- Call the FrameLink instance methods imperatively
+            Activated = function()
+                if shopLink then
+                    shopLink:toggle()
+                end
+            end,
+        },
+    }
+end
+
+return ShopComponent
+
+```
+
+---
+
+### 3. Folder-based Linking (`FrameLink.multiLink`)
+
+For traditional static UI structures organized inside folders:
 
 ```text
-ReplicatedStorage
- └── FrameLink (ModuleScript)
-      └── Animations (ModuleScript)
+StarterGui
+└── MainGui
+    ├── Buttons/
+    │   ├── Shop
+    │   ├── Inventory
+    │   └── Settings
+    └── Frames/
+        ├── Shop (contains CloseButton)
+        ├── Inventory (contains CloseButton)
+        └── Settings (contains CloseButton)
 
 ```
 
----
-
-## Usage
-
-### Basic Single Link
-
-To link a single button to a frame, require the module and use `FrameLink.link()`.
+Initialize every interface with a single call:
 
 ```lua
-local FrameLink = require(game.ReplicatedStorage.FrameLink)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local FrameLink = require(ReplicatedStorage.FrameLink)
 
-local myButton = script.Parent.OpenMenuButton
-local myFrame = script.Parent.MenuFrame
-local closeButton = myFrame.CloseButton
+local gui = game:GetService("Players").LocalPlayer.PlayerGui:WaitForChild("MainGui")
 
-FrameLink.link(myButton, myFrame, {
-    Anim = "Pop",             -- Uses the "Pop" animation from the Animations module
-    XButton = closeButton,    -- Automatically closes the frame when clicked
-    SoundIn = someSoundPath,  -- Plays when opening
-    OnOpened = function()
-        print("Menu opened!")
-    end
-})
-
-```
-
-### Multi-Linking
-
-If you have a sidebar with multiple buttons (e.g., Shop, Inventory, Settings) that correspond to frames with the exact same names, you can link them all at once.
-
-```lua
-local buttonsFolder = script.Parent.SidebarButtons
-local framesFolder = script.Parent.MenuFrames
-
-FrameLink.multiLink(buttonsFolder, framesFolder, {
-    Anim = "SlideRight",
-    XButtonName = "CloseBtn",      -- Looks for a button named "CloseBtn" inside each frame
-    BackgroundName = "DimmerBg"    -- Looks for a background button to close the frame when clicking away
+FrameLink.multiLink(gui.Buttons, gui.Frames, {
+    Anim = "PopSpin",
+    CloseButtonName = "CloseButton",
+    BackgroundName = "ModalOverlay",
+    SoundIn = ReplicatedStorage.Sounds.OpenSound,
+    SoundOut = ReplicatedStorage.Sounds.CloseSound,
 })
 
 ```
 
 ---
 
-## Creating Custom Animations
+## Built-in Animations
 
-The biggest feature of FrameLink is the **Animations module**. You no longer need to write massive `if/elseif` blocks to add new UI behaviors.
+FrameLink includes standard presets provided via the `Animations` submodule:
 
-To add a new animation, simply open the `Animations` module and add a new dictionary. The module passes a `defaults` table (containing the frame's original Size, Position, and Rotation) so your animations always know how to reset correctly.
+| Animation Name | Description |
+| --- | --- |
+| `Pop` | Scales frame up from `0` to its original size using `Back` easing. |
+| `PopSpin` | Scales up while un-spinning from `-60°`. |
+| `SlideBottom` | Slides in from below the screen (`Y Scale = 1.5`). |
+| `Top` | Drops in from above the screen (`Y Scale = -0.5`) with bounce easing. |
+| `SlideRight` | Slides in from the right screen boundary (`X Scale = 1.5`). |
+| `SlideLeft` | Slides in from the left screen boundary (`X Scale = -0.5`). |
+| `SlideLeftSpin` | Slides in from the left screen boundary while rotating 180 degrees. |
+| `SlideRightSpin` | Slides in from the right screen boundary while rotating -180 degrees. |
 
-### Example: Adding a "FadeOut" Animation
+---
 
-Add this to your `Animations` ModuleScript:
+## Custom Animations
+
+### Registering Globally
+
+Register custom preset transitions to make them available across all scripts:
 
 ```lua
-Animations.DropAndFade = {
-    -- 1. Define TweenInfos
-    InfoIn = TweenInfo.new(0.4, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out),
+local FrameLink = require(ReplicatedStorage.FrameLink)
+
+FrameLink.registerAnimation("FadeScale", {
+    InfoIn = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
     InfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-    
-    -- 2. Define where the frame should start BEFORE the 'In' tween plays
-    StartState = function(defaults) 
-        return { 
-            Position = UDim2.new(defaults.Position.X.Scale, defaults.Position.X.Offset, -1, 0)
-        } 
+    StartState = function(defaults)
+        return {
+            Size = UDim2.new(0, 0, 0, 0),
+            GroupTransparency = 1,
+        }
     end,
-    
-    -- 3. Define the goal for the 'In' tween (usually back to defaults)
-    InGoals = function(defaults) 
-        return { Position = defaults.Position } 
+    InGoals = function(defaults)
+        return {
+            Size = defaults.Size,
+            GroupTransparency = 0,
+        }
     end,
-    
-    -- 4. Define the goal for the 'Out' tween
-    OutGoals = function(defaults) 
-        return { Position = UDim2.new(defaults.Position.X.Scale, defaults.Position.X.Offset, 1.5, 0) } 
+    OutGoals = function(defaults)
+        return {
+            Size = UDim2.new(0, 0, 0, 0),
+            GroupTransparency = 1,
+        }
     end,
+})
+
+-- Use your custom animation
+FrameLink.link(button, frame, { Anim = "FadeScale" })
+
+```
+
+---
+
+## API Reference
+
+### `FrameLink.link(button, frame, props)`
+
+Binds an optional `GuiButton` trigger to a target `GuiObject` frame and returns a `FrameLinkObj` instance.
+
+* **`button`**: `GuiButton?` — Optional trigger button that toggles frame visibility. Pass `nil` for declarative framework UI workflow.
+* **`frame`**: `GuiObject` — Target UI element.
+* **`props`**: `Props?` — Config object (see [Props Reference](https://www.google.com/search?q=%23props-reference)).
+
+### `FrameLink.multiLink(buttonFolder, frameFolder, multiProps)`
+
+Iterates over a folder of buttons, pairing them with named frames in a frame folder.
+
+### `FrameLink.registerAnimation(name, animDef)`
+
+Adds a named `AnimationDefinition` table to the internal registry.
+
+### Instance Methods (`FrameLinkObj`)
+
+```lua
+window:setOpen()   -- Opens the frame and closes any previously opened active frame
+window:setClosed() -- Closes the frame
+window:toggle()    -- Toggles between open/closed states
+window:destroy()   -- Disconnects events and cancels active tweens
+
+```
+
+---
+
+## Props Reference
+
+```lua
+type Props = {
+    In: (string | AnimationDefinition)?,        -- Animation for opening
+    Out: (string | AnimationDefinition)?,       -- Animation for closing
+    Anim: (string | AnimationDefinition)?,      -- Unified animation for both In/Out
+    CloseButton: GuiButton?,                   -- Button that explicitly closes the frame
+    Background: GuiButton?,                    -- Backdrop overlay button (closes frame on click)
+    SoundIn: Sound?,                           -- Sound played when opening
+    SoundOut: Sound?,                          -- Sound played when closing
+    OnOpened: ((FrameLinkObj) -> ())?,         -- Callback executed on open
+    OnClosed: ((FrameLinkObj) -> ())?,         -- Callback executed on close
+    tweenInfoIn: TweenInfo?,                   -- Override TweenInfo for open transition
+    tweenInfoOut: TweenInfo?,                  -- Override TweenInfo for close transition
 }
 
 ```
 
-Now, you can immediately use `Anim = "DropAndFade"` in your props!
-
 ---
 
-## API Reference (Props)
+## License
 
-When calling `.link()` or `.multiLink()`, you can pass a `props` dictionary to customize the behavior.
+Copyright (c) 2026 karlobii
 
-| Property | Type | Description |
-| --- | --- | --- |
-| `Anim` | `string` | The name of the animation to use for both In and Out (e.g., "Pop", "SlideRight"). |
-| `In` | `string` | Specify a unique animation ONLY for opening. (Overwritten by Anim) |
-| `Out` | `string` | Specify a unique animation ONLY for closing. (Overwritten by Anim) |
-| `XButton` | `GuiButton` | A button that, when clicked, will close the frame. |
-| `Background` | `GuiButton` | A background (like a dark transparent overlay) that becomes visible when the frame opens, and closes the frame when clicked. |
-| `SoundIn` | `Sound` | A sound object to play when the frame opens. |
-| `SoundOut` | `Sound` | A sound object to play when the frame closes. |
-| `OnOpened` | `function` | A callback function fired the moment the In-animation completes (or instantly if no animation). |
-| `OnClosed` | `function` | A callback function fired the moment the Out-animation completes. |
-| `tweenInfoIn` | `TweenInfo` | Overrides the default `TweenInfo` for the In-animation. |
-| `tweenInfoOut` | `TweenInfo` | Overrides the default `TweenInfo` for the Out-animation. |
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+```
+
+```#   F r a m e L i n k  
+ 
