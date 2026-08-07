@@ -1,17 +1,68 @@
+--[[
 -- FrameLink - UI Animation & State Management Framework
 -- Copyright (C) 2026 karlobii (GITHUB)
 -- This program is free software: you can redistribute it under the terms of the GNU General Public License v3.0.
--- See <https://www.gnu.org/licenses/> for details.--]]
+-- See <https://www.gnu.org/licenses/> for details.
+--]]
 
+--!strict
 
 local TweenService = game:GetService("TweenService")
+local AnimationsModule = script:WaitForChild("Animations")
+local Animations = require(AnimationsModule) :: { [string]: AnimationDefinition }
 
-local Animations = require(script.Animations)
+export type Defaults = {
+	Size: UDim2,
+	Position: UDim2,
+	Rotation: number,
+	[string]: any,
+}
 
-local frameLink = {}
-frameLink.__index = frameLink
-export type frameLink = typeof(frameLink) & {
-	props: props?,
+export type Goals = {
+	Size: UDim2?,
+	Position: UDim2?,
+	Rotation: number?,
+	[string]: any,
+}
+
+export type AnimationDefinition = {
+	InfoIn: TweenInfo?,
+	InfoOut: TweenInfo?,
+	InGoals: (Defaults) -> Goals,
+	OutGoals: (Defaults) -> Goals,
+	StartState: (Defaults) -> { [string]: any },
+}
+
+export type Props = {
+	In: (string | AnimationDefinition)?, 
+	Out: (string | AnimationDefinition)?,
+	Anim: (string | AnimationDefinition)?,
+	CloseButton: GuiButton?,
+	Background: GuiButton?,
+	SoundIn: Sound?,
+	SoundOut: Sound?, 
+	OnOpened: ((FrameLinkObj) -> ())?,
+	OnClosed: ((FrameLinkObj) -> ())?,
+	tweenInfoIn: TweenInfo?,
+	tweenInfoOut: TweenInfo?,
+}
+
+export type MultiProps = {
+	In: (string | AnimationDefinition)?, 
+	Out: (string | AnimationDefinition)?,
+	Anim: (string | AnimationDefinition)?,
+	CloseButtonName: string?, 
+	BackgroundName: string?,
+	SoundIn: Sound?,
+	SoundOut: Sound?,
+	OnOpened: ((FrameLinkObj) -> ())?,
+	OnClosed: ((FrameLinkObj) -> ())?,
+	tweenInfoIn: TweenInfo?,
+	tweenInfoOut: TweenInfo?,
+}
+
+type FrameLinkState = {
+	props: Props,
 	tweens: { In: Tween?, Out: Tween? },
 	open: boolean,
 	isAnimating: boolean,
@@ -19,65 +70,63 @@ export type frameLink = typeof(frameLink) & {
 	defaultPosition: UDim2,
 	defaultRotation: number,
 	startState: { [string]: any },
-	frame: Frame,
-	connections: { RBXScriptConnection }
+	frame: GuiObject,
+	connections: { RBXScriptConnection },
 }
 
-export type props = {
-	In: string?, 
-	Out: string?,
-	Anim: string?,
-	CloseButton: GuiButton?,
-	Background: GuiButton?,
-	SoundIn: Sound?,
-	SoundOut: Sound?, 
-	OnOpened: (() -> ())?,
-	OnClosed: (() -> ())?,
-	tweenInfoIn: TweenInfo?,
-	tweenInfoOut: TweenInfo?
+export type FrameLinkObj = typeof(setmetatable({} :: FrameLinkState, {} :: FrameLinkClass))
+
+type FrameLinkClass = {
+	__index: FrameLinkClass,
+	registerAnimation: (name: string, animDef: AnimationDefinition) -> (),
+	_playOpen: (self: FrameLinkObj) -> (),
+	setOpen: (self: FrameLinkObj) -> (),
+	setClosed: (self: FrameLinkObj) -> (),
+	toggle: (self: FrameLinkObj) -> (),
+	check: (self: FrameLinkObj, frame: GuiObject?) -> boolean,
+	createTweens: (self: FrameLinkObj) -> (),
+	init: (self: FrameLinkObj, button: GuiButton?) -> (),
+	destroyTweens: (self: FrameLinkObj) -> (),
+	destroy: (self: FrameLinkObj) -> (),
+	link: (button: GuiButton?, frame: GuiObject, props: Props?) -> FrameLinkObj?,
+	multiLink: (buttonFolder: Folder, frameFolder: Folder, multiProps: MultiProps?) -> (),
 }
 
-export type multiProps = {
-	In: string?, 
-	Out: string?,
-	Anim: string?,
-	CloseButtonName: string?, 
-	BackgroundName: string?,
-	SoundIn: Sound?,
-	SoundOut: Sound?,
-	OnOpened: (() -> ())?,
-	OnClosed: (() -> ())?,
-	tweenInfoIn: TweenInfo?,
-	tweenInfoOut: TweenInfo?,
-}
+local FrameLink = {} :: FrameLinkClass
+FrameLink.__index = FrameLink
 
-local currentFrame : frameLink? = nil
+local currentFrame: FrameLinkObj? = nil
 
-function frameLink._playOpen(self: frameLink)
+function FrameLink.registerAnimation(name: string, animDef: AnimationDefinition)
+	Animations[name] = animDef
+end
+
+function FrameLink._playOpen(self: FrameLinkObj)
 	self.open = true
 
-	for property, value in self.startState do
+	for property, value in pairs(self.startState) do
 		(self.frame :: any)[property] = value
 	end
 
 	self.frame.Visible = true
 
-	if self.props and self.props.SoundIn then
+	if self.props.SoundIn then
 		self.props.SoundIn:Play()
 	end
 
-	if self.props and self.props.Background then
+	if self.props.Background then
 		self.props.Background.Visible = true
 	end
 
-	if self.props and self.props.OnOpened then
-		self.props.OnOpened(self :: frameLink)
+	local onOpened = self.props.OnOpened
+	if onOpened then
+		onOpened(self)
 	end
 
 	if self.tweens.In then
 		self.isAnimating = true
 		self.tweens.In:Play()
-		
+
 		self.tweens.In.Completed:Once(function()
 			self.isAnimating = false
 		end)
@@ -86,7 +135,7 @@ function frameLink._playOpen(self: frameLink)
 	end
 end
 
-function frameLink.setOpen(self: frameLink)
+function FrameLink.setOpen(self: FrameLinkObj)
 	if self.open == true or self.isAnimating then return end
 
 	if currentFrame and currentFrame ~= self then
@@ -109,43 +158,48 @@ function frameLink.setOpen(self: frameLink)
 	end
 end
 
-function frameLink.setClosed(self: frameLink)
+function FrameLink.setClosed(self: FrameLinkObj)
 	if self.open == false or self.isAnimating then return end
 
 	if currentFrame == self then
 		currentFrame = nil
-	end	
+	end 
 
 	self.open = false
 
-	if self.props and self.props.SoundOut then
+	if self.props.SoundOut then
 		self.props.SoundOut:Play()
 	end
 
-	if self.props and self.props.Background then
+	if self.props.Background then
 		self.props.Background.Visible = false
 	end
 
 	if self.tweens.Out then
 		self.isAnimating = true
 		self.tweens.Out:Play()
+
 		self.tweens.Out.Completed:Once(function()
 			self.frame.Visible = false
 			self.isAnimating = false
-			if self.props and self.props.OnClosed then
-				self.props.OnClosed(self :: frameLink)
+
+			local onClosed = self.props.OnClosed
+			if onClosed then
+				onClosed(self)
 			end
 		end)
 	else
 		self.frame.Visible = false
 		self.isAnimating = false
-		if self.props and self.props.OnClosed then
-			self.props.OnClosed(self :: frameLink)
+
+		local onClosed = self.props.OnClosed
+		if onClosed then
+			onClosed(self)
 		end
 	end
 end
 
-function frameLink.toggle(self: frameLink)
+function FrameLink.toggle(self: FrameLinkObj)
 	if self.open == true then
 		self:setClosed()
 	else
@@ -153,78 +207,126 @@ function frameLink.toggle(self: frameLink)
 	end
 end
 
-function frameLink.check(self: frameLink, button:GuiButton): boolean
-	if not button or not self.frame then return false end
-	if not button:IsA("GuiButton") then return false end
-	if not self.frame:IsA("Frame") then return false end
+function FrameLink.check(self: FrameLinkObj, frame: GuiObject?): boolean
+	if not frame then return false end
+	if not frame:IsA("GuiObject") then return false end
 	return true
 end
 
-function frameLink.createTweens(self: frameLink) : ()
+function FrameLink.createTweens(self: FrameLinkObj)
 	self.tweens = {}
-		
+
 	self.startState = {
 		Size = self.defaultSize,
 		Position = self.defaultPosition,
-		Rotation = self.defaultRotation
+		Rotation = self.defaultRotation,
 	}
-	
-	local props = self.props or {}
-	local defaults = table.clone(self.startState)
-	local inAnimName = props.Anim or props.In
-	local outAnimName = props.Anim or props.Out
 
-	local inGoals, outGoals = {}, {}
-	local inInfo, outInfo = nil, nil
+	local defaults: Defaults = table.clone(self.startState) :: Defaults
 
-	if inAnimName and Animations[inAnimName] then
-		local animDef = Animations[inAnimName]
-		inInfo = props.tweenInfoIn or animDef.InfoIn
-		inGoals = animDef.InGoals(defaults)
+	local inAnimProp = self.props.Anim or self.props.In
+	local outAnimProp = self.props.Anim or self.props.Out
 
-		for prop, val in animDef.StartState(defaults) do
+	local function getAnimDef(animProp: (string | AnimationDefinition)?): AnimationDefinition?
+		if type(animProp) == "table" then
+			return animProp
+		elseif type(animProp) == "string" then
+			return Animations[animProp]
+		end
+		return nil
+	end
+
+	local inGoals: Goals = {}
+	local outGoals: Goals = {}
+	local inInfo: TweenInfo? = nil
+	local outInfo: TweenInfo? = nil
+
+	local inDef = getAnimDef(inAnimProp)
+	if inDef then
+		inInfo = self.props.tweenInfoIn or inDef.InfoIn
+		inGoals = inDef.InGoals(defaults)
+
+		local startStateGoals = inDef.StartState(defaults)
+		for prop, val in pairs(startStateGoals) do
 			self.startState[prop] = val
 		end
-	elseif inAnimName then
-		warn("FrameLink: Unknown IN animation '" .. inAnimName .. "'")
+	elseif inAnimProp then
+		warn("FrameLink: Unknown IN animation")
 	end
 
-	if outAnimName and Animations[outAnimName] then
-		local animDef = Animations[outAnimName]
-		outInfo = props.tweenInfoOut or animDef.InfoOut
-		outGoals = animDef.OutGoals(defaults)
-	elseif outAnimName then
-		warn("FrameLink: Unknown OUT animation '" .. outAnimName .. "'")
+	local outDef = getAnimDef(outAnimProp)
+	if outDef then
+		outInfo = self.props.tweenInfoOut or outDef.InfoOut
+		outGoals = outDef.OutGoals(defaults)
+	elseif outAnimProp then
+		warn("FrameLink: Unknown OUT animation")
 	end
 
-	if next(inGoals) ~= nil and inInfo then
-		self.tweens.In = TweenService:Create(self.frame, inInfo, inGoals)
+	if next(inGoals) and inInfo then
+		self.tweens.In = TweenService:Create(self.frame, inInfo, inGoals :: { [string]: any })
 	end
 
-	if next(outGoals) ~= nil and outInfo then
-		self.tweens.Out = TweenService:Create(self.frame, outInfo, outGoals)
+	if next(outGoals) and outInfo then
+		self.tweens.Out = TweenService:Create(self.frame, outInfo, outGoals :: { [string]: any })
 	end
 end
 
-function frameLink.init(self: frameLink, button: GuiButton)
-	button.MouseButton1Click:Connect(function()
-		self:toggle()
-	end)
+function FrameLink.init(self: FrameLinkObj, button: GuiButton?)
+	if button then
+		local connection = button.MouseButton1Click:Connect(function()
+			self:toggle()
+		end)
+		table.insert(self.connections, connection)
+	end
 
 	if self.props.CloseButton then
-		self.props.CloseButton.MouseButton1Click:Connect(function()
+		local connection = self.props.CloseButton.MouseButton1Click:Connect(function()
 			self:setClosed()
 		end)
+		table.insert(self.connections, connection)
 	end
 
 	if self.props.Background then
-		self.props.Background.MouseButton1Click:Connect(function()
+		local connection = self.props.Background.MouseButton1Click:Connect(function()
 			self:setClosed()
 		end)
+		table.insert(self.connections, connection)
 	end
 end
 
-function frameLink.link(button: GuiButton, frame: Frame, props: props) : frameLink
+function FrameLink.destroyTweens(self: FrameLinkObj)
+	if self.tweens.In then
+		self.tweens.In:Cancel()
+		self.tweens.In:Destroy()
+		self.tweens.In = nil
+	end
+
+	if self.tweens.Out then
+		self.tweens.Out:Cancel()
+		self.tweens.Out:Destroy()
+		self.tweens.Out = nil
+	end
+end
+
+function FrameLink.destroy(self: FrameLinkObj)
+	if currentFrame == self then
+		currentFrame = nil
+	end
+
+	self:destroyTweens()
+
+	for _, conn in ipairs(self.connections) do
+		if conn and conn.Connected then
+			conn:Disconnect()
+		end
+	end
+	table.clear(self.connections)
+
+	self.open = false
+	self.isAnimating = false
+end
+
+function FrameLink.link(button: GuiButton?, frame: GuiObject, props: Props?): FrameLinkObj?
 	local self = setmetatable({
 		open = false,
 		isAnimating = false,
@@ -234,69 +336,73 @@ function frameLink.link(button: GuiButton, frame: Frame, props: props) : frameLi
 		startState = {},
 		tweens = {},
 		frame = frame,
-		props = props,
+		props = props or {},
 		connections = {},
-	}, frameLink) :: frameLink
-	
-	if self.props == nil then self.props = {} end 
-	
-	if self:check(button) then
-		self:createTweens() 
+	}, FrameLink) :: FrameLinkObj
 
-		for property, value in (self.startState) do
-			(self.frame :: any)[property] = value
-		end
-		self.frame.Visible = false
-		if self.props.Background then self.props.Background.Visible = false end
-
-		self:init(button) 
+	if not self:check(frame) then
+		warn("FrameLink: Attempted to link an invalid frame.")
+		return nil
 	end
+
+	self:createTweens()
+
+	for property, value in pairs(self.startState) do
+		(self.frame :: any)[property] = value
+	end
+
+	self.frame.Visible = false
+	if self.props.Background then 
+		self.props.Background.Visible = false 
+	end
+
+	self:init(button)
 
 	return self
 end
 
-function frameLink.multiLink(buttonFolder: Folder, frameFolder: Folder, multiProps: multiProps)
-	for _,button in buttonFolder:GetChildren() do
+function FrameLink.multiLink(buttonFolder: Folder, frameFolder: Folder, multiProps: MultiProps?)
+	local safeProps = multiProps or {} :: MultiProps
+
+	for _, button in ipairs(buttonFolder:GetChildren()) do
 		local frame = frameFolder:FindFirstChild(button.Name)
-		if frame and button:IsA("GuiButton") and frame:IsA("Frame") then
 
-			if multiProps == nil then multiProps = {} end
-
-			local CloseButton = nil
-			if multiProps.CloseButtonName then
-				local foundX = frame:FindFirstChild(multiProps.CloseButtonName)
+		if frame and button:IsA("GuiButton") and frame:IsA("GuiObject") then
+			local closeButton: GuiButton? = nil
+			if safeProps.CloseButtonName then
+				local foundX = frame:FindFirstChild(safeProps.CloseButtonName)
 				if foundX and foundX:IsA("GuiButton") then
-					CloseButton = foundX
+					closeButton = foundX
 				end
 			end
 
-			local Background = nil
-			if multiProps.BackgroundName then
-				local foundBg = frame.Parent:FindFirstChild(multiProps.BackgroundName)
+			local background: GuiButton? = nil
+			if safeProps.BackgroundName and frame.Parent then
+				local foundBg = frame.Parent:FindFirstChild(safeProps.BackgroundName)
 				if foundBg and foundBg:IsA("GuiButton") then
-					Background = foundBg
+					background = foundBg
 				end
 			end
 
-			local props : props = {
-				In = multiProps.In,
-				Out = multiProps.Out,
-				Anim = multiProps.Anim,
-				CloseButton = CloseButton,
-				Background = Background,
-				SoundIn = multiProps.SoundIn,
-				SoundOut = multiProps.SoundOut,
-				OnOpened = multiProps.OnOpened,
-				OnClosed = multiProps.OnClosed,
-				tweenInfoIn = multiProps.tweenInfoIn,
-				tweenInfoOut = multiProps.tweenInfoOut,
+			local props: Props = {
+				In = safeProps.In,
+				Out = safeProps.Out,
+				Anim = safeProps.Anim,
+				CloseButton = closeButton,
+				Background = background,
+				SoundIn = safeProps.SoundIn,
+				SoundOut = safeProps.SoundOut,
+				OnOpened = safeProps.OnOpened,
+				OnClosed = safeProps.OnClosed,
+				tweenInfoIn = safeProps.tweenInfoIn,
+				tweenInfoOut = safeProps.tweenInfoOut,
 			}
 
-			frameLink.link(button, frame, props)
+			FrameLink.link(button, frame, props)
 		else
-			warn("Invalid button or frame setup for: ", button.Name)
+			warn("FrameLink: Invalid button or frame setup for: ", button.Name)
 		end
 	end
 end
 
-return frameLink
+return FrameLink
