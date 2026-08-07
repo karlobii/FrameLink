@@ -4,7 +4,7 @@
 
 Whether you build interfaces using traditional Instance hierarchies or declarative UI frameworks like **Vide**, **Fusion**, or **Roact**, FrameLink integrates seamlessly by allowing optional button binding (`button = nil`) and exposing imperative control methods (`:setOpen()`, `:setClosed()`, `:toggle()`).
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://opensource.org/license/mit)
 [![Luau Strict](https://img.shields.io/badge/Luau-Strict-blueviolet.svg)](https://luau-lang.org/)
 
 ---
@@ -307,8 +307,5 @@ type props = {
 
 ---
 
-## License
-
-This project is licensed under the **GNU General Public License v3.0** - see the LICENSE file for details.
 
 Copyright (c) 2026 karlobii
